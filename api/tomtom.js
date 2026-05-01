@@ -5,10 +5,13 @@ export default async function handler(req, res) {
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${from}:${to}/json?key=${key}&traffic=true&travelMode=car`;
   try {
     const r = await fetch(url);
-    const data = await r.json();
+    const text = await r.text();
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.status(200).json(data);
+    if (!r.ok) {
+      return res.status(200).json({ error: `TomTom ${r.status}`, detail: text.slice(0, 300), url });
+    }
+    res.status(200).json(JSON.parse(text));
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({ error: e.message });
   }
 }
