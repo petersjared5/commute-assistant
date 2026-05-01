@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Commute Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; display: flex; justify-content: center; padding: 2rem 1rem; }
+  .app { background: white; border-radius: 16px; padding: 1.5rem; max-width: 420px; width: 100%; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header p { font-size: 12px; color: #888; margin-top: 2px; }
+  .settings-btn { font-size: 13px; border: 1px solid #ddd; border-radius: 8px; padding: 6px 12px; cursor: pointer; background: white; }
+  .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.5rem; }
+  .btn { padding: 14px 8px; font-size: 15px; font-weight: 600; border: 1px solid #ddd; border-radius: 12px; cursor: pointer; background: white; transition: background 0.15s; }
+  .btn:hover { background: #f0f0f0; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .spinner { display: flex; flex-direction: column; align-items: center; padding: 2rem 0; gap: 12px; }
+  .spin { width: 28px; height: 28px; border: 3px solid #eee; border-top: 3px solid #888; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin-msg { font-size: 13px; color: #888; }
+  .card { border: 1px solid #eee; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 12px; }
+  .card.accent { border: 2px solid #3b82f6; }
+  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+  .pill.bus { background: #e1f5ee; color: #0f6e56; }
+  .pill.l { background: #e6f1fb; color: #0c447c; }
+  .card-reason { font-size: 13px; color: #888; margin-bottom: 6px; }
+  .card-instruction { font-size: 14px; font-weight: 600; line-height: 1.5; }
+  .arrivals-label { font-size: 11px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  .row span:last-child { font-weight: 600; }
+  .footer { display: flex; justify-content: space-between; font-size: 11px; color: #bbb; padding: 4px 0; }
+  .error { font-size: 13px; color: #c0392b; }
+  .empty { text-align: center; padding: 2rem 0; font-size: 13px; color: #bbb; }
+  .warning { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #856404; margin-bottom: 16px; }
+
+  /* Settings */
+  .settings { display: none; }
+  .settings.open { display: block; }
+  .settings h2 { font-size: 16px; font-weight: 600; margin-bottom: 1rem; }
+  .settings label { font-size: 12px; color: #888; display: block; margin-bottom: 4px; }
+  .settings input[type=number] { width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 8px; padding: 6px; font-size: 13px; }
+  .settings input[type=password], .settings input[type=text] { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 8px; font-size: 13px; margin-bottom: 12px; }
+  .threshold-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .threshold-row label { flex: 1; margin-right: 12px; margin-bottom: 0; }
+  .save-row { display: flex; gap: 8px; margin-top: 16px; }
+  .save-row button { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 10px; cursor: pointer; font-size: 14px; background: white; }
+  .main { display: block; }
+  .main.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Main View -->
+  <div class="main" id="main">
+    <div class="header">
+      <div>
+        <h1>Commute assistant</h1>
+        <p>Lakeview → Loop</p>
+      </div>
+      <button class="settings-btn" onclick="openSettings()">Settings</button>
+    </div>
+
+    <div id="warning" class="warning" style="display:none">
+      API keys not set. Open Settings to add your keys.
+    </div>
+
+    <div class="buttons">
+      <button class="btn" id="btn-work" onclick="run('work')">Going to work</button>
+      <button class="btn" id="btn-home" onclick="run('home')">Going home</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <!-- Settings View -->
+  <div class="settings" id="settings">
+    <h2>Settings</h2>
+    <label>TomTom API key (traffic)</label>
+    <input type="password" id="s-tomtom" placeholder="Paste key here" />
+    <label>CTA Train API key</label>
+    <input type="password" id="s-train" placeholder="Paste key here" />
+    <label>CTA Bus API key</label>
+    <input type="password" id="s-bus" placeholder="Paste key here" />
+
+    <div style="border-top:1px solid #eee;margin-top:8px;padding-top:14px">
+      <p style="font-size:13px;font-weight:600;margin-bottom:10px">Decision thresholds</p>
+      <div class="threshold-row"><label>Drive ≥ this → always L (min)</label><input type="number" id="t-high" /></div>
+      <div class="threshold-row"><label>Drive ≥ this → check bus (min)</label><input type="number" id="t-mid" /></div>
+      <div class="threshold-row"><label>Bus arrives within this → take bus (min)</label><input type="number" id="t-bus" /></div>
+      <div class="threshold-row"><label>L transfer wait limit (min)</label><input type="number" id="t-transfer" /></div>
+      <div class="threshold-row"><label>Red Line to Lake: take if within (min)</label><input type="number" id="t-lake" /></div>
+    </div>
+    <div class="save-row">
+      <button onclick="saveSettings()">Save</button>
+      <button onclick="closeSettings()">Cancel</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const STOPS = {
+  bus135_addison: "6151",
+  bus135_lasalle: "18145",
+  red_addison: "30173",
+  brown_belmont: "30169",
+  brown_fullerton: "30167",
+  merch_mart: "30074",
+  red_lake: "30051",
+};
+
+let cfg = {
+  tomtom: "VRCtaCcO9zdWzV9rcIxo0NgRPhHGmBMH",
+  train: "8633f66ad8e841a5bfa0e73d3ce3c009",
+  bus: "ZLAtSFXu7U2kY7wapcXdBnjLb",
+  driveHigh: 30, driveMid: 25, busWait: 7, lTransferWait: 5, lWalkFromLake: 12
+};
+
+try { const s = localStorage.getItem("commute_cfg"); if (s) cfg = { ...cfg, ...JSON.parse(s) }; } catch(_) {}
+
+function saveCfg() { try { localStorage.setItem("commute_cfg", JSON.stringify(cfg)); } catch(_) {} }
+
+function openSettings() {
+  document.getElementById("main").classList.add("hidden");
+  document.getElementById("settings").classList.add("open");
+  document.getElementById("s-tomtom").value = cfg.tomtom || "";
+  document.getElementById("s-train").value = cfg.train || "";
+  document.getElementById("s-bus").value = cfg.bus || "";
+  document.getElementById("t-high").value = cfg.driveHigh;
+  document.getElementById("t-mid").value = cfg.driveMid;
+  document.getElementById("t-bus").value = cfg.busWait;
+  document.getElementById("t-transfer").value = cfg.lTransferWait;
+  document.getElementById("t-lake").value = cfg.lWalkFromLake;
+}
+
+function closeSettings() {
+  document.getElementById("main").classList.remove("hidden");
+  document.getElementById("settings").classList.remove("open");
+}
+
+function saveSettings() {
+  cfg.tomtom = document.getElementById("s-tomtom").value.trim();
+  cfg.train = document.getElementById("s-train").value.trim();
+  cfg.bus = document.getElementById("s-bus").value.trim();
+  cfg.driveHigh = +document.getElementById("t-high").value;
+  cfg.driveMid = +document.getElementById("t-mid").value;
+  cfg.busWait = +document.getElementById("t-bus").value;
+  cfg.lTransferWait = +document.getElementById("t-transfer").value;
+  cfg.lWalkFromLake = +document.getElementById("t-lake").value;
+  saveCfg();
+  closeSettings();
+}
+
+async function getDrive(direction) {
+  const from = direction === "work" ? "41.9474,-87.6386" : "41.8827,-87.6356";
+  const to   = direction === "work" ? "41.8827,-87.6356" : "41.9474,-87.6386";
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/${from}:${to}/json?key=${cfg.tomtom}&traffic=true&travelMode=car`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("TomTom HTTP " + r.status);
+  const d = await r.json();
+  return Math.round(d.routes[0].summary.travelTimeInSeconds / 60);
+}
+
+async function getBus(stopId) {
+  const url = `/api/bus?key=${cfg.bus}&stpid=${stopId}`;
+  const r = await fetch(url);
+  const d = await r.json();
+  const preds = d["bustime-response"]?.prd;
+  if (!preds?.length) return null;
+  const now = Date.now();
+  const mins = preds.map(p => {
+    const [date, time] = p.prdtm.split(" ");
+    const [y, mo, dy] = date.split("-");
+    const [hr, min] = time.split(":");
+    return Math.round((new Date(y, mo-1, dy, hr, min) - now) / 60000);
+  }).filter(m => m >= 0);
+  return mins.length ? Math.min(...mins) : null;
+}
+
+async function getTrain(stopId, routes) {
+  const url = `/api/train?key=${cfg.train}&stpid=${stopId}&rt=${routes.join(",")}`;
+  const r = await fetch(url);
+  const d = await r.json();
+  const etas = d.ctatt?.eta;
+  if (!etas?.length) return null;
+  const now = Date.now();
+  const mins = etas.map(e => Math.round((new Date(e.arrT) - now) / 60000)).filter(m => m >= 0);
+  return mins.length ? Math.min(...mins) : null;
+}
+
+function setLoading(on, msg) {
+  document.getElementById("btn-work").disabled = on;
+  document.getElementById("btn-home").disabled = on;
+  document.getElementById("output").innerHTML = on
+    ? `<div class="spinner"><div class="spin"></div><span class="spin-msg">${msg}</span></div>`
+    : "";
+}
+
+function showError(msg) {
+  document.getElementById("output").innerHTML = `<div class="card"><p class="error">${msg}</p></div>`;
+}
+
+function showResult(rec) {
+  const modeClass = rec.mode === "bus" ? "bus" : "l";
+  const modeLabel = rec.mode === "bus" ? "Take the bus" : "Take the L";
+  const dirLabel = rec.direction === "work" ? "→ Loop" : "→ Lakeview";
+  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  let rows = rec.detail.map(d => `<div class="row"><span>${d.label}</span><span>${d.value}</span></div>`).join("");
+  let arrivalsCard = rec.detail.length ? `<div class="card"><div class="arrivals-label">Live arrivals</div>${rows}</div>` : "";
+
+  document.getElementById("output").innerHTML = `
+    <div class="card accent">
+      <div class="card-top">
+        <span class="pill ${modeClass}">${modeLabel}</span>
+        <span style="font-size:12px;color:#aaa">${dirLabel}</span>
+      </div>
+      <p class="card-reason">${rec.reason}</p>
+      <p class="card-instruction">${rec.instructions}</p>
+    </div>
+    ${arrivalsCard}
+    <div class="footer"><span>Drive estimate: ${rec.drive} min</span><span>${time}</span></div>
+  `;
+}
+
+async function run(direction) {
+  setLoading(true, "Checking live traffic…");
+  try {
+    const drive = await getDrive(direction);
+    setLoading(true, "Fetching CTA arrivals…");
+    const T = cfg;
+    const rec = { drive, direction, detail: [] };
+
+    const addL = async () => {
+      if (direction === "work") {
+        const red = await getTrain(STOPS.red_addison, ["Red"]);
+        const belmont = await getTrain(STOPS.brown_belmont, ["Brn","P"]);
+        const fullerton = await getTrain(STOPS.brown_fullerton, ["Brn","P"]);
+        rec.detail.push({ label: "Red Line @ Addison", value: red != null ? `${red} min` : "N/A" });
+        rec.detail.push({ label: "Brown/Purple @ Belmont", value: belmont != null ? `${belmont} min` : "N/A" });
+        rec.detail.push({ label: "Brown/Purple @ Fullerton", value: fullerton != null ? `${fullerton} min` : "N/A" });
+        const best = Math.min(...[belmont, fullerton].filter(v => v != null).concat([99]));
+        const which = (belmont != null && belmont <= (fullerton ?? 999)) ? "Belmont" : "Fullerton";
+        rec.mode = "l";
+        rec.instructions = best <= T.lTransferWait
+          ? `Red Line from Addison → transfer Brown/Purple at ${which} (${best} min wait).`
+          : `Transfer wait ${best} min — ride Red Line to Lake, walk to office.`;
+      } else {
+        const mm = await getTrain(STOPS.merch_mart, ["Brn","P"]);
+        rec.detail.push({ label: "Brown/Purple @ Merch Mart", value: mm != null ? `${mm} min` : "N/A" });
+        if (mm != null && mm <= T.busWait) {
+          rec.mode = "l";
+          rec.instructions = `Walk to Merchandise Mart — Brown/Purple in ${mm} min. Transfer to Red at Fullerton → exit Addison.`;
+        } else {
+          const lake = await getTrain(STOPS.red_lake, ["Red"]);
+          rec.detail.push({ label: "Red Line @ Lake", value: lake != null ? `${lake} min` : "N/A" });
+          rec.mode = "l";
+          rec.instructions = lake != null && lake <= T.lWalkFromLake
+            ? `Merch Mart wait ${mm ?? "?"} min — walk to Lake Red Line (${lake} min). Exit Addison.`
+            : `Head to Merchandise Mart for Brown/Purple (${mm ?? "?"} min). Transfer to Red at Fullerton → exit Addison.`;
+        }
+      }
+    };
+
+    const checkBus = async (stopId, boardAt, exitAt) => {
+      const bus = await getBus(stopId);
+      rec.detail.push({ label: `Bus 135 @ ${boardAt}`, value: bus != null ? `${bus} min` : "No prediction" });
+      if (bus != null && bus < T.busWait) {
+        rec.mode = "bus";
+        rec.instructions = `Bus 135 in ${bus} min — board at ${boardAt}, exit at ${exitAt}.`;
+        return true;
+      }
+      return false;
+    };
+
+    if (drive >= T.driveHigh) {
+      rec.reason = `Drive is ${drive} min — taking the L.`;
+      await addL();
+    } else if (drive >= T.driveMid) {
+      rec.reason = `Drive is ${drive} min — checking Bus 135.`;
+      const busStop = direction === "work" ? STOPS.bus135_addison : STOPS.bus135_lasalle;
+      const board = direction === "work" ? "Addison" : "LaSalle";
+      const exit = direction === "work" ? "LaSalle/Loop" : "Brompton";
+      const tookBus = await checkBus(busStop, board, exit);
+      if (!tookBus) {
+        rec.reason += ` Bus wait too long — taking the L.`;
+        await addL();
+      }
+    } else {
+      rec.reason = `Drive is ${drive} min — light traffic, bus is fastest.`;
+      const busStop = direction === "work" ? STOPS.bus135_addison : STOPS.bus135_lasalle;
+      const board = direction === "work" ? "Addison" : "LaSalle";
+      const exit = direction === "work" ? "LaSalle/Loop" : "Brompton";
+      await checkBus(busStop, board, exit);
+      if (!rec.mode) { rec.mode = "bus"; rec.instructions = `Take Bus 135 from ${board}. Exit at ${exit}.`; }
+    }
+
+    setLoading(false);
+    showResult(rec);
+  } catch(e) {
+    setLoading(false);
+    showError(e.message);
+  }
+}
+</script>
+</body>
+</html>
