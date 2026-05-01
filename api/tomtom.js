@@ -1,5 +1,7 @@
 export default async function handler(req, res) {
-  const { key, from, to } = req.query;
+  const { key, direction } = req.query;
+  const from = direction === "work" ? "41.9474,-87.6386" : "41.8827,-87.6356";
+  const to   = direction === "work" ? "41.8827,-87.6356" : "41.9474,-87.6386";
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${from}:${to}/json?key=${key}&traffic=true&travelMode=car`;
   try {
     const r = await fetch(url);
