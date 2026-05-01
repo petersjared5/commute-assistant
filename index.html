@@ -156,12 +156,11 @@ function saveSettings() {
 }
 
 async function getDrive(direction) {
-  const from = direction === "work" ? "41.9474,-87.6386" : "41.8827,-87.6356";
-  const to   = direction === "work" ? "41.8827,-87.6356" : "41.9474,-87.6386";
-  const url = `/api/tomtom?key=${cfg.tomtom}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const url = `/api/tomtom?key=${cfg.tomtom}&direction=${direction}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error("TomTom HTTP " + r.status);
   const d = await r.json();
+  if (!d.routes?.[0]) throw new Error("TomTom: no route returned. " + JSON.stringify(d).slice(0, 100));
   return Math.round(d.routes[0].summary.travelTimeInSeconds / 60);
 }
 
