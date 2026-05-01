@@ -158,9 +158,9 @@ function saveSettings() {
 async function getDrive(direction) {
   const url = `/api/tomtom?key=${cfg.tomtom}&direction=${direction}`;
   const r = await fetch(url);
-  if (!r.ok) throw new Error("TomTom HTTP " + r.status);
   const d = await r.json();
-  if (!d.routes?.[0]) throw new Error("TomTom: no route returned. " + JSON.stringify(d).slice(0, 100));
+  if (d.error) throw new Error(d.error + (d.detail ? ": " + d.detail : ""));
+  if (!d.routes?.[0]) throw new Error("No route: " + JSON.stringify(d).slice(0, 150));
   return Math.round(d.routes[0].summary.travelTimeInSeconds / 60);
 }
 
